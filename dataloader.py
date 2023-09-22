@@ -1,38 +1,43 @@
-import os
 import os.path as op
 
+import albumentations.pytorch
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2
 import json
 
 from PIL import Image
 from glob import glob
 
-
+import albumentations
 import torch.nn.utils.rnn
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from torchvision import transforms
-from torchvision.transforms.functional import to_pil_image
 
 
 class ImageTransform:
     def __init__(self, image_size, mean, std):
-        self.data_transform = transforms.Compose([
-            transforms.Resize(image_size),
-            transforms.ToTensor(),
-            transforms.Normalize(mean, std)
-        ])
+        self.data_transform = albumentations.Compose([
+            albumentations.Resize(image_size[0], image_size[1]),
+            albumentations.ColorJitter(p=0.5),
+            albumentations.OneOf([
+                albumentations.HorizontalFlip(p=0.5),
+                albumentations.VerticalFlip(p=1)
+            ], p=1),
+            albumentations.Normalize(mean, std),
+            albumentations.pytorch.ToTensorV2()],
+            bbox_params=albumentations.BboxParams(format='pascal_voc', label_fields=["class_labels"])
+        )
 
     def __call__(self, img, label):
-        return self.data_transform(img), label
+        bboxes = [lbl[1:] for lbl in label]
+        category = [lbl[0] for lbl in label]
+        return self.data_transform(image=img, bboxes=bboxes, class_labels=category)
 
 
 class BatchPadder:
-    def __call__(self, sample):
-        image = [sample['image'] for sample in sample]
-        label = [sample['label'] for sample in sample]
+    def __call__(self, samples):
+        image = [sample['image'] for sample in samples]
+        label = [sample['label'] for sample in samples]
         padded_input = torch.nn.utils.rnn.pad_sequence(image, batch_first=True)
         padded_label = self.get_numpy_from_nonfixed_2d_array(label)
         torch_label = torch.tensor(padded_label)
@@ -40,16 +45,18 @@ class BatchPadder:
                 "label": torch_label.contiguous()}
 
     def get_numpy_from_nonfixed_2d_array(self, input_label_list):
-        padding_list = [-1, 0, 0, 0, 0]
+        padding_list = np.array([[-1, 0, 0, 0, 0]])
         size_of_list = []
+        padded_label_list = []
         for i in input_label_list:
             size_of_list.append(len(i))
         max_length = max(size_of_list)
         for line in input_label_list:
             if len(line) < max_length:
                 for pad_array in range(max_length - len(line)):
-                    line.append(padding_list)
-        return input_label_list
+                    line = np.append(line, padding_list, axis=0)
+            padded_label_list.append(line)
+        return padded_label_list
 
 
 class KiTTiDataset(Dataset):
@@ -65,10 +72,12 @@ class KiTTiDataset(Dataset):
     def __getitem__(self, index):
         image = self.file_list[index]
         label = self.get_label(self.file_list[index])
-        image = Image.open(image)
+        image = cv2.imread(image)
         if self.transform:
-            image, label = self.transform(image, label)
-        sample = {"image": image, "label": label}
+            transformed = self.transform(image, label)
+            transformed_label = np.concatenate((np.transpose(np.array([transformed["class_labels"]])),
+                                                np.array(transformed["bboxes"])), axis=1)
+        sample = {"image": transformed["image"], "label": transformed_label}
         return sample
 
     def load_config(self, config_path):
@@ -124,7 +133,7 @@ def draw_line(img, labels):
 def main(data_path, config_path):
     mean = (0.5, )
     std = (0.3, )
-    image_size = (370, 1224)
+    image_size = (416, 416)
     training_data_list = op.join(data_path, "training")
     test_data_list = op.join(data_path, "testing")
     training_data = KiTTiDataset(training_data_list,  config_path, transform=ImageTransform(image_size, mean, std))
