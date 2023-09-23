@@ -40,7 +40,7 @@ class BatchPadder:
         label = [sample['label'] for sample in samples]
         padded_input = torch.nn.utils.rnn.pad_sequence(image, batch_first=True)
         padded_label = self.get_numpy_from_nonfixed_2d_array(label)
-        torch_label = torch.tensor(padded_label)
+        torch_label = torch.from_numpy(np.array(padded_label))
         return {"image": padded_input.contiguous(),
                 "label": torch_label.contiguous()}
 
