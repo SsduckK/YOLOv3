@@ -20,7 +20,7 @@ class ImageTransform:
             albumentations.ColorJitter(p=0.5),
             albumentations.OneOf([
                 albumentations.HorizontalFlip(p=0.5),
-                albumentations.VerticalFlip(p=1)
+                albumentations.VerticalFlip(p=0.5)
             ], p=1),
             albumentations.Normalize(mean, std),
             albumentations.pytorch.ToTensorV2()],

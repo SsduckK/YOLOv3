@@ -10,5 +10,6 @@
     "Tram": 6,
     "Misc": 7,
     "DontCare": -1
-  }
+  },
+  "image_input_size": 416
 }

@@ -38,7 +38,7 @@ class Top_down(nn.Module):
 
         self.conv = nn.Sequential(
             BasicConv(in_channel, out_channel, 1, stride=1, padding=0),
-            BasicConv(out_channel, out_channel*2, 3, stride=1, padding=0),
+            BasicConv(out_channel, out_channel*2, 3, stride=1, padding=1),
             BasicConv(out_channel*2, out_channel, 1, stride=1, padding=0),
             BasicConv(out_channel, out_channel*2, 3, stride=1, padding=1),
             BasicConv(out_channel*2, out_channel, 1, stride=1, padding=0)
